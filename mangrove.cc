@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <random>
 
 // #include "./json11/json11.hpp"
 
@@ -164,8 +165,15 @@ static inline std::string string_remove(const std::string& s, const std::string&
     }
     return str;
 }
-
 //------------------------------------------------------------------------------------------------------
+static int GenerateRandom(const int low,const int high){
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::uniform_int_distribution<int> dist(low, high);
+    return dist(g);
+}
+//------------------------------------------------------------------------------------------------------
+
 int main(int argc, char* argv[]){
     std::ifstream in("pg.txt");
     std::stringstream buffer;
@@ -195,11 +203,19 @@ int main(int argc, char* argv[]){
             std::string n;
             std::cin >> n;
 
-            std::cout << "---";
             auto search_token = std::string(n);
-            for(const auto& t: m.GetNext(search_token)){
-                std::cout << search_token << "->" << t.second << " " << t.first << std::endl;
+            auto candidates = m.GetNext(search_token);
+            while(candidates.size()>0){
+                int i = GenerateRandom(0,candidates.size()-1);
+                search_token = candidates.at(i).second;
+                std::cout << search_token << " ";
+                candidates = m.GetNext(search_token);
             }
+            std::cout << "---\n";
+
+            // for(const auto& t: m.GetNext(search_token)){
+            //     std::cout << search_token << "->" << t.second << " " << t.first << std::endl;
+            // }
         }
     });
 
