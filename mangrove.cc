@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <sstream>
 #include <iostream>
+#include <fstream>
+#include <thread>
 
-#include "./json11/json11.hpp"
+// #include "./json11/json11.hpp"
 
 namespace Mangrove{
 
@@ -97,9 +99,14 @@ public:
         std::shared_ptr<Node> n;
         if(node_map.find(word) != node_map.end()){//not found
             n = node_map[word];
+            int counter = 0; int max_results = 3;
             for(const auto& ass : n->associations){
                 results.push_back({ass.probability, ass.next_node->word});
                 // results.push_back({ass.count, ass.next_node->word});
+                if(counter >= max_results){
+                    break;
+                }
+                ++counter;
             }
         }
         return results;
@@ -107,28 +114,95 @@ public:
 };
 
 }
-int main(int argc, char* argv[]){
-    // std::ifstream in("pg.txt");
-    // std::stringstream buffer;
-    // buffer << in.rdbuf();
-    // std::string contents(buffer.str());
-    auto corpus = std::string("the cat is red the cat is green the cat is blue the dog is brown");
+//------------------------------------------------------------------------------------------
+// Trims whitespace from begining and end of a string.
+// Does not modify the original string
+static inline std::string string_trim(const std::string& s){
+    const std::string whitespace = " \t\f\v\n\r";
+    std::string ss(s);
+    if(ss.empty())
+        return ss;
+    int start = ss.find_first_not_of(whitespace);
+    int end = ss.find_last_not_of(whitespace);
+    if(start<0){//whole string is whitespace
+      ss.erase(0);
+      return ss;
+    }
+    ss.erase(0,start);
+    ss.erase((end - start) + 1);
+    return ss;
+}
+//------------------------------------------------------------------------------------------------------
+static inline std::vector<std::string> string_split(const std::string& s, const std::string& delim){
+    std::vector<std::string> result;
+    if(delim.empty() || s.empty())
+        return result;
+
+    std::string::size_type k0 = 0;
+    std::string::size_type k1 = s.find(delim);
+    if(k1==std::string::npos)
+      return std::vector<std::string>{s};
+    while(k1!=std::string::npos){
+        auto item = s.substr(k0,k1-k0);
+        if(!item.empty())
+          result.push_back(item);
+        k0 = k1+delim.size();
+        k1 = s.find(delim,k0);
+    }
     
-    std::stringstream ss(corpus); // Insert the string into a stream
-    std::vector<std::string> tokens; // Create vector to hold our words
-    std::string buf;
-    while (ss >> buf)
-        tokens.push_back(buf);    
+    auto item = s.substr(k0);
+    if(!item.empty())
+      result.push_back(item);
+      
+    return result;
+}
+//------------------------------------------------------------------------------------------------------
+static inline std::string string_remove(const std::string& s, const std::string& chars_to_remove){
+    auto str = s;
+    for(const auto c: chars_to_remove){
+        str.erase(std::remove(str.begin(), str.end(), c), str.end());
+    }
+    return str;
+}
+
+//------------------------------------------------------------------------------------------------------
+int main(int argc, char* argv[]){
+    std::ifstream in("pg.txt");
+    std::stringstream buffer;
+    buffer << in.rdbuf();
+    std::string content(buffer.str());
 
     Mangrove::Mangrove m;
-    for(const auto& w : tokens){
-        m.Add(w);
+    
+    auto sentences = string_split(content,"\n.;-()");
+    for(const auto& s: sentences){
+        std::stringstream ss(s); // Insert the string into a stream
+        std::vector<std::string> tokens; // Create vector to hold our words
+        std::string buf;
+        while (ss >> buf)
+            tokens.push_back(string_trim(string_remove(buf,".=;/{}*&^%$£!,()[]?")));
+
+        
+        for(const auto& w : tokens){
+            m.Add(w);
+        }
     }
+
     m.ComputeProbabilities();
 
-    std::cout << "\n\n\n\n";
-    auto search_token = std::string("the");
-    for(const auto& t: m.GetNext(search_token)){
-        std::cout << search_token << "->" << t.second << " " << t.first << std::endl;
-    }
+    auto reader_t = std::thread([&](){
+        while(true){
+            std::string n;
+            std::cin >> n;
+
+            std::cout << "---";
+            auto search_token = std::string(n);
+            for(const auto& t: m.GetNext(search_token)){
+                std::cout << search_token << "->" << t.second << " " << t.first << std::endl;
+            }
+        }
+    });
+
+    reader_t.join();
+
 }
